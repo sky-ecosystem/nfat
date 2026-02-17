@@ -21,6 +21,10 @@ interface IERC20 {
     function transfer(address to, uint256 amount) external returns (bool);
 }
 
+interface WhitelistLike {
+    function isWhitelisted(address) external view returns (bool);
+}
+
 /// @title NFATFacility
 /// @notice Non-Fungible Allocation Token Facility for bespoke capital deployment deals
 /// @dev Implements queue-based deposits, ERC-721 NFAT minting, and redemption mechanics
@@ -48,9 +52,9 @@ contract NFATFacility {
     uint256 public nextTokenId;
 
     struct NFATData {
-        uint256 principal;   // Current principal (mutable via spend)
-        address depositor;   // Original Prime address (immutable)
-        uint40  mintedAt;    // Mint timestamp
+        uint256 principal;
+        address depositor;
+        uint40  mintedAt;
     }
 
     mapping(uint256 tokenId => NFATData data)           internal _nfats;
@@ -59,14 +63,9 @@ contract NFATFacility {
     mapping(uint256 tokenId => address approved)        internal _tokenApprovals;
     mapping(address owner => mapping(address operator => bool approved)) internal _operatorApprovals;
 
-    // --- Redeemer Storage ---
-
-    address public redeemer;
-
     // --- Whitelist Storage ---
 
-    bool public whitelistEnabled;
-    mapping(address account => bool allowed) public whitelist;
+    address public whitelist;
 
     // --- Events: Access Control ---
 
@@ -89,14 +88,9 @@ contract NFATFacility {
     event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
     event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
 
-    // --- Events: Redeemer ---
+    // --- Events: File ---
 
-    event SetRedeemer(address indexed redeemer);
-
-    // --- Events: Whitelist ---
-
-    event WhitelistEnabled(bool enabled);
-    event WhitelistUpdated(address indexed account, bool allowed);
+    event File(bytes32 indexed what, address data);
 
     // --- Modifiers ---
 
@@ -128,7 +122,7 @@ contract NFATFacility {
         emit Rely(msg.sender);
     }
 
-    // --- Access Control Functions ---
+    // --- Admin Functions ---
 
     function rely(address usr) external auth {
         wards[usr] = 1;
@@ -170,6 +164,12 @@ contract NFATFacility {
         emit Start();
     }
 
+    function file(bytes32 what, address data) external auth {
+        if (what == "whitelist") whitelist = data;
+        else revert("NFATFacility/file-unrecognized-param");
+        emit File(what, data);
+    }
+
     // --- Queue Functions ---
 
     /// @notice Prime deposits sUSDS into the queue
@@ -187,13 +187,14 @@ contract NFATFacility {
         emit Subscribe(msg.sender, amount);
     }
 
-    /// @notice Prime withdraws all deposited sUSDS (full exit from queue)
-    function withdraw() external notStopped {
-        uint256 amount = deposits[msg.sender];
-        require(amount > 0, "NFATFacility/no-deposits");
+    /// @notice Prime withdraws sUSDS from the queue
+    /// @param amount The amount of sUSDS to withdraw
+    function withdraw(uint256 amount) external notStopped {
+        require(amount > 0, "NFATFacility/zero-amount");
+        require(deposits[msg.sender] >= amount, "NFATFacility/insufficient-deposits");
 
         // Effects
-        deposits[msg.sender] = 0;
+        deposits[msg.sender] -= amount;
         totalDeposits -= amount;
 
         // Interactions
@@ -208,6 +209,8 @@ contract NFATFacility {
     function claim(address target, uint256 amount) external roleAuth notStopped {
         require(amount > 0, "NFATFacility/zero-amount");
         require(deposits[target] >= amount, "NFATFacility/insufficient-deposits");
+
+        require(whitelist == address(0) || WhitelistLike(whitelist).isWhitelisted(target), "NFATFacility/not-whitelisted");
 
         uint256 tokenId = nextTokenId++;
 
@@ -271,9 +274,7 @@ contract NFATFacility {
         require(ownerOf(tokenId) == from, "NFATFacility/wrong-from");
         require(to != address(0), "NFATFacility/zero-address");
 
-        if (whitelistEnabled) {
-            require(whitelist[to], "NFATFacility/not-whitelisted");
-        }
+        require(whitelist == address(0) || WhitelistLike(whitelist).isWhitelisted(to), "NFATFacility/not-whitelisted");
 
         // Clear approval
         _tokenApprovals[tokenId] = address(0);
@@ -311,78 +312,7 @@ contract NFATFacility {
         }
     }
 
-    // --- Redeemer Functions ---
-
-    /// @notice Set the redeemer contract address
-    /// @param redeemer_ The address of the redeemer contract
-    function setRedeemer(address redeemer_) external auth {
-        redeemer = redeemer_;
-        emit SetRedeemer(redeemer_);
-    }
-
-    /// @notice Burns an NFAT token (only callable by redeemer)
-    /// @param tokenId The NFAT to burn
-    function burn(uint256 tokenId) external {
-        require(msg.sender == redeemer, "NFATFacility/not-redeemer");
-
-        address owner = _owners[tokenId];
-        require(owner != address(0), "NFATFacility/invalid-token");
-
-        // Effects - Burn NFAT
-        _tokenApprovals[tokenId] = address(0);
-        _balances[owner] -= 1;
-        delete _owners[tokenId];
-        delete _nfats[tokenId];
-
-        emit Transfer(owner, address(0), tokenId);
-    }
-
-    /// @notice Reduces principal of an NFAT (only callable by redeemer)
-    /// @param tokenId The NFAT to modify
-    /// @param amount The amount to reduce principal by
-    function reducePrincipal(uint256 tokenId, uint256 amount) external {
-        require(msg.sender == redeemer, "NFATFacility/not-redeemer");
-        require(_owners[tokenId] != address(0), "NFATFacility/invalid-token");
-
-        NFATData storage nfat = _nfats[tokenId];
-        require(nfat.principal >= amount, "NFATFacility/exceeds-principal");
-
-        nfat.principal -= amount;
-    }
-
-    /// @notice Check if an address is approved or owner of a token
-    /// @param spender The address to check
-    /// @param tokenId The token to check
-    /// @return Whether the spender is approved or owner
-    function isApprovedOrOwner(address spender, uint256 tokenId) external view returns (bool) {
-        return _isApprovedOrOwner(spender, tokenId);
-    }
-
-    // --- Whitelist Functions ---
-
-    /// @notice Enable or disable transfer restrictions
-    /// @param enabled Whether to enable the whitelist
-    function setWhitelistEnabled(bool enabled) external roleAuth {
-        whitelistEnabled = enabled;
-        emit WhitelistEnabled(enabled);
-    }
-
-    /// @notice Add or remove an address from the whitelist
-    /// @param account The address to update
-    /// @param allowed Whether the address is allowed
-    function setWhitelist(address account, bool allowed) external roleAuth {
-        whitelist[account] = allowed;
-        emit WhitelistUpdated(account, allowed);
-    }
-
     // --- View Functions ---
-
-    /// @notice Get a depositor's balance in the queue
-    /// @param depositor The address to query
-    /// @return The deposited sUSDS amount
-    function getQueueBalance(address depositor) external view returns (uint256) {
-        return deposits[depositor];
-    }
 
     /// @notice Check if a user has a specific role
     /// @param usr The address to check
@@ -424,7 +354,7 @@ contract NFATFacility {
         return _nfats[tokenId].mintedAt;
     }
 
-    // --- ERC-721 Metadata (Optional) ---
+    // --- ERC-721 Metadata  ---
 
     function name() external pure returns (string memory) {
         return "Non-Fungible Allocation Token";
@@ -439,8 +369,7 @@ contract NFATFacility {
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
         return
             interfaceId == 0x01ffc9a7 || // ERC-165
-            interfaceId == 0x80ac58cd || // ERC-721
-            interfaceId == 0x5b5e139f;   // ERC-721 Metadata
+            interfaceId == 0x80ac58cd;   // ERC-721
     }
 }
 

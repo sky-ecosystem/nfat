@@ -24,10 +24,6 @@ interface IERC20 {
 interface INFATFacility {
     function sUSDS() external view returns (IERC20);
     function ownerOf(uint256 tokenId) external view returns (address);
-    function isApprovedOrOwner(address spender, uint256 tokenId) external view returns (bool);
-    function getPrincipal(uint256 tokenId) external view returns (uint256);
-    function burn(uint256 tokenId) external;
-    function reducePrincipal(uint256 tokenId, uint256 amount) external;
 }
 
 /// @title NFATRedeemer
@@ -64,7 +60,6 @@ contract NFATRedeemer {
 
     event Fund(uint256 indexed tokenId, uint256 amount);
     event Redeem(uint256 indexed tokenId, uint256 amount);
-    event Spend(uint256 indexed tokenId, uint256 amount, uint256 remainingPrincipal);
 
     // --- Modifiers ---
 
@@ -156,52 +151,23 @@ contract NFATRedeemer {
         emit Fund(tokenId, amount);
     }
 
-    /// @notice NFAT holder burns token, receives funded amount
-    /// @param tokenId The NFAT to redeem
-    function redeem(uint256 tokenId) external notStopped {
-        require(facility.isApprovedOrOwner(msg.sender, tokenId), "NFATRedeemer/not-authorized");
-
-        uint256 amount = funded[tokenId];
-        require(amount > 0, "NFATRedeemer/not-funded");
+    /// @notice NFAT holder claims specified amount from funded balance
+    /// @param tokenId The NFAT to redeem from
+    /// @param amount The amount of sUSDS to claim
+    function redeem(uint256 tokenId, uint256 amount) external notStopped {
+        require(amount > 0, "NFATRedeemer/zero-amount");
+        require(funded[tokenId] >= amount, "NFATRedeemer/insufficient-funded");
 
         address owner = facility.ownerOf(tokenId);
+        require(msg.sender == owner, "NFATRedeemer/not-owner");
 
         // Effects
-        delete funded[tokenId];
-
-        // Interactions - Burn NFAT via facility
-        facility.burn(tokenId);
+        funded[tokenId] -= amount;
 
         // Interactions - Transfer funds to owner
         require(sUSDS.transfer(owner, amount), "NFATRedeemer/transfer-failed");
 
         emit Redeem(tokenId, amount);
-    }
-
-    /// @notice Partial claim for amortizing loans - reduces principal
-    /// @param tokenId The NFAT to spend from
-    /// @param amount The amount to claim
-    function spend(uint256 tokenId, uint256 amount) external notStopped {
-        require(facility.isApprovedOrOwner(msg.sender, tokenId), "NFATRedeemer/not-authorized");
-        require(amount > 0, "NFATRedeemer/zero-amount");
-        require(funded[tokenId] >= amount, "NFATRedeemer/insufficient-funded");
-
-        uint256 principal = facility.getPrincipal(tokenId);
-        require(principal >= amount, "NFATRedeemer/exceeds-principal");
-
-        address owner = facility.ownerOf(tokenId);
-
-        // Effects
-        funded[tokenId] -= amount;
-
-        // Interactions - Reduce principal via facility
-        facility.reducePrincipal(tokenId, amount);
-
-        // Interactions - Transfer funds to owner
-        require(sUSDS.transfer(owner, amount), "NFATRedeemer/transfer-failed");
-
-        uint256 remainingPrincipal = facility.getPrincipal(tokenId);
-        emit Spend(tokenId, amount, remainingPrincipal);
     }
 
     // --- View Functions ---
