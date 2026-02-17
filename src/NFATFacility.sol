@@ -44,7 +44,6 @@ contract NFATFacility {
 
     // --- Queue Storage ---
 
-    uint256 public totalDeposits;
     mapping(address depositor => uint256 amount) public deposits;
 
     // --- NFAT Storage ---
@@ -179,7 +178,6 @@ contract NFATFacility {
 
         // Effects
         deposits[msg.sender] += amount;
-        totalDeposits += amount;
 
         // Interactions
         require(sUSDS.transferFrom(msg.sender, address(this), amount), "NFATFacility/transfer-failed");
@@ -195,7 +193,6 @@ contract NFATFacility {
 
         // Effects
         deposits[msg.sender] -= amount;
-        totalDeposits -= amount;
 
         // Interactions
         require(sUSDS.transfer(msg.sender, amount), "NFATFacility/transfer-failed");
@@ -216,7 +213,6 @@ contract NFATFacility {
 
         // Effects - Queue
         deposits[target] -= amount;
-        totalDeposits -= amount;
 
         // Effects - NFAT
         _nfats[tokenId] = NFATData({
