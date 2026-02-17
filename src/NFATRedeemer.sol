@@ -65,7 +65,7 @@ contract NFATRedeemer {
         funded[tokenId] += amount;
 
         // Interactions
-        require(sUSDS.transferFrom(msg.sender, address(this), amount), "NFATRedeemer/transfer-failed");
+        sUSDS.transferFrom(msg.sender, address(this), amount);
 
         emit Fund(tokenId, amount);
     }
@@ -84,7 +84,7 @@ contract NFATRedeemer {
         funded[tokenId] -= amount;
 
         // Interactions - Transfer funds to owner
-        require(sUSDS.transfer(owner, amount), "NFATRedeemer/transfer-failed");
+        sUSDS.transfer(owner, amount);
 
         emit Redeem(tokenId, amount);
     }

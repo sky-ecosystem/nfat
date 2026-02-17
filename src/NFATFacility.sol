@@ -180,7 +180,7 @@ contract NFATFacility {
         deposits[msg.sender] += amount;
 
         // Interactions
-        require(sUSDS.transferFrom(msg.sender, address(this), amount), "NFATFacility/transfer-failed");
+        sUSDS.transferFrom(msg.sender, address(this), amount);
 
         emit Subscribe(msg.sender, amount);
     }
@@ -195,7 +195,7 @@ contract NFATFacility {
         deposits[msg.sender] -= amount;
 
         // Interactions
-        require(sUSDS.transfer(msg.sender, amount), "NFATFacility/transfer-failed");
+        sUSDS.transfer(msg.sender, amount);
 
         emit Withdraw(msg.sender, amount);
     }
@@ -224,7 +224,7 @@ contract NFATFacility {
         _balances[target] += 1;
 
         // Interactions
-        require(sUSDS.transfer(almProxy, amount), "NFATFacility/transfer-failed");
+        sUSDS.transfer(almProxy, amount);
 
         emit Claim(target, tokenId, amount);
         emit Transfer(address(0), target, tokenId);
