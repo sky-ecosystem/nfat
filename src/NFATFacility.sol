@@ -153,7 +153,7 @@ contract NFATFacility {
         emit SetRoleAction(role, sig, enabled);
     }
 
-    function stop() external auth {
+    function stop() external roleAuth {
         stopped = true;
         emit Stop();
     }
