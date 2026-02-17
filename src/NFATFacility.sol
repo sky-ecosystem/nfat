@@ -22,7 +22,7 @@ interface IERC20 {
 }
 
 interface WhitelistLike {
-    function isWhitelisted(address) external view returns (bool);
+    function canTransfer(address from, address to) external view returns (bool);
 }
 
 /// @title NFATFacility
@@ -207,7 +207,7 @@ contract NFATFacility {
         require(amount > 0, "NFATFacility/zero-amount");
         require(deposits[target] >= amount, "NFATFacility/insufficient-deposits");
 
-        require(whitelist == address(0) || WhitelistLike(whitelist).isWhitelisted(target), "NFATFacility/not-whitelisted");
+        require(whitelist == address(0) || WhitelistLike(whitelist).canTransfer(address(0), target), "NFATFacility/transfer-denied");
 
         uint256 tokenId = nextTokenId++;
 
@@ -270,7 +270,7 @@ contract NFATFacility {
         require(ownerOf(tokenId) == from, "NFATFacility/wrong-from");
         require(to != address(0), "NFATFacility/zero-address");
 
-        require(whitelist == address(0) || WhitelistLike(whitelist).isWhitelisted(to), "NFATFacility/not-whitelisted");
+        require(whitelist == address(0) || WhitelistLike(whitelist).canTransfer(from, to), "NFATFacility/transfer-denied");
 
         // Clear approval
         _tokenApprovals[tokenId] = address(0);
