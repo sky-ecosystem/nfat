@@ -36,68 +36,20 @@ contract NFATRedeemer {
     INFATFacility public immutable facility;
     IERC20        public immutable sUSDS;
 
-    // --- Access Control Storage ---
-
-    mapping(address usr => uint256 allowed) public wards;
-    bool public stopped;
-
     // --- Redeem Storage ---
 
     mapping(uint256 tokenId => uint256 amount) public funded;
 
-    // --- Events: Access Control ---
-
-    event Rely(address indexed usr);
-    event Deny(address indexed usr);
-    event Stop();
-    event Start();
-
-    // --- Events: Redeem ---
+    // --- Events ---
 
     event Fund(uint256 indexed tokenId, uint256 amount);
     event Redeem(uint256 indexed tokenId, uint256 amount);
-
-    // --- Modifiers ---
-
-    modifier auth() {
-        require(wards[msg.sender] == 1, "NFATRedeemer/not-authorized");
-        _;
-    }
-
-    modifier notStopped() {
-        require(!stopped, "NFATRedeemer/stopped");
-        _;
-    }
 
     // --- Constructor ---
 
     constructor(address facility_) {
         facility = INFATFacility(facility_);
         sUSDS = facility.sUSDS();
-        wards[msg.sender] = 1;
-        emit Rely(msg.sender);
-    }
-
-    // --- Admin Functions ---
-
-    function rely(address usr) external auth {
-        wards[usr] = 1;
-        emit Rely(usr);
-    }
-
-    function deny(address usr) external auth {
-        wards[usr] = 0;
-        emit Deny(usr);
-    }
-
-    function stop() external auth {
-        stopped = true;
-        emit Stop();
-    }
-
-    function start() external auth {
-        stopped = false;
-        emit Start();
     }
 
     // --- Redeem Functions ---
@@ -105,7 +57,7 @@ contract NFATRedeemer {
     /// @notice Deposit funds for NFAT redemption
     /// @param tokenId The NFAT to fund
     /// @param amount The amount of sUSDS to deposit
-    function fund(uint256 tokenId, uint256 amount) external notStopped {
+    function fund(uint256 tokenId, uint256 amount) external {
         require(facility.ownerOf(tokenId) != address(0), "NFATRedeemer/invalid-token");
         require(amount > 0, "NFATRedeemer/zero-amount");
 
@@ -121,7 +73,7 @@ contract NFATRedeemer {
     /// @notice NFAT holder claims specified amount from funded balance
     /// @param tokenId The NFAT to redeem from
     /// @param amount The amount of sUSDS to claim
-    function redeem(uint256 tokenId, uint256 amount) external notStopped {
+    function redeem(uint256 tokenId, uint256 amount) external {
         require(amount > 0, "NFATRedeemer/zero-amount");
         require(funded[tokenId] >= amount, "NFATRedeemer/insufficient-funded");
 
@@ -136,5 +88,4 @@ contract NFATRedeemer {
 
         emit Redeem(tokenId, amount);
     }
-
 }

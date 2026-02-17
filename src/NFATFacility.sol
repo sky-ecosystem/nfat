@@ -173,7 +173,7 @@ contract NFATFacility {
 
     /// @notice Prime deposits sUSDS into the queue
     /// @param amount The amount of sUSDS to deposit
-    function subscribe(uint256 amount) external notStopped {
+    function subscribe(uint256 amount) external {
         require(amount > 0, "NFATFacility/zero-amount");
 
         // Effects
@@ -187,7 +187,7 @@ contract NFATFacility {
 
     /// @notice Prime withdraws sUSDS from the queue
     /// @param amount The amount of sUSDS to withdraw
-    function withdraw(uint256 amount) external notStopped {
+    function withdraw(uint256 amount) external {
         require(amount > 0, "NFATFacility/zero-amount");
         require(deposits[msg.sender] >= amount, "NFATFacility/insufficient-deposits");
 
@@ -265,7 +265,7 @@ contract NFATFacility {
         return _operatorApprovals[owner][operator];
     }
 
-    function transferFrom(address from, address to, uint256 tokenId) public notStopped {
+    function transferFrom(address from, address to, uint256 tokenId) public {
         require(_isApprovedOrOwner(msg.sender, tokenId), "NFATFacility/not-authorized");
         require(ownerOf(tokenId) == from, "NFATFacility/wrong-from");
         require(to != address(0), "NFATFacility/zero-address");
