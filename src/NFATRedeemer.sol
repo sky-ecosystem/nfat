@@ -58,7 +58,7 @@ contract NFATRedeemer {
     /// @param tokenId The NFAT to fund
     /// @param amount The amount of sUSDS to deposit
     function fund(uint256 tokenId, uint256 amount) external {
-        require(facility.ownerOf(tokenId) != address(0), "NFATRedeemer/invalid-token");
+        facility.ownerOf(tokenId); // reverts if token does not exist
         require(amount > 0, "NFATRedeemer/zero-amount");
 
         // Effects

@@ -27,7 +27,7 @@ interface WhitelistLike {
 
 /// @title NFATFacility
 /// @notice Non-Fungible Allocation Token Facility for bespoke capital deployment deals
-/// @dev Implements queue-based deposits, ERC-721 NFAT minting, and redemption mechanics
+/// @dev Implements queue-based deposits and ERC-721 NFAT minting
 contract NFATFacility {
 
     // --- Immutables ---
@@ -328,7 +328,7 @@ contract NFATFacility {
 
     /// @notice Get the principal of an NFAT
     /// @param tokenId The NFAT to query
-    /// @return The current principal
+    /// @return The principal
     function getPrincipal(uint256 tokenId) external view returns (uint256) {
         require(_owners[tokenId] != address(0), "NFATFacility/invalid-token");
         return _nfats[tokenId].principal;
