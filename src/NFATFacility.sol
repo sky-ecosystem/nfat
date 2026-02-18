@@ -21,8 +21,8 @@ interface IERC20 {
     function transfer(address to, uint256 amount) external returns (bool);
 }
 
-interface WhitelistLike {
-    function canTransfer(address from, address to) external view returns (bool);
+interface IdentityNetworkLike {
+    function isMember(address account) external view returns (bool);
 }
 
 /// @title NFATFacility
@@ -62,9 +62,9 @@ contract NFATFacility {
     mapping(uint256 tokenId => address approved)        internal _tokenApprovals;
     mapping(address owner => mapping(address operator => bool approved)) internal _operatorApprovals;
 
-    // --- Whitelist Storage ---
+    // --- Identity Network Storage ---
 
-    address public whitelist;
+    address public identityNetwork;
 
     // --- Events: Access Control ---
 
@@ -164,7 +164,7 @@ contract NFATFacility {
     }
 
     function file(bytes32 what, address data) external auth {
-        if (what == "whitelist") whitelist = data;
+        if (what == "identityNetwork") identityNetwork = data;
         else revert("NFATFacility/file-unrecognized-param");
         emit File(what, data);
     }
@@ -207,7 +207,7 @@ contract NFATFacility {
         require(amount > 0, "NFATFacility/zero-amount");
         require(deposits[target] >= amount, "NFATFacility/insufficient-deposits");
 
-        require(whitelist == address(0) || WhitelistLike(whitelist).canTransfer(address(0), target), "NFATFacility/transfer-denied");
+        require(identityNetwork == address(0) || IdentityNetworkLike(identityNetwork).isMember(target), "NFATFacility/target-not-member");
 
         uint256 tokenId = nextTokenId++;
 
@@ -270,7 +270,7 @@ contract NFATFacility {
         require(ownerOf(tokenId) == from, "NFATFacility/wrong-from");
         require(to != address(0), "NFATFacility/zero-address");
 
-        require(whitelist == address(0) || WhitelistLike(whitelist).canTransfer(from, to), "NFATFacility/transfer-denied");
+        require(identityNetwork == address(0) || IdentityNetworkLike(identityNetwork).isMember(to), "NFATFacility/to-not-member");
 
         // Clear approval
         _tokenApprovals[tokenId] = address(0);
