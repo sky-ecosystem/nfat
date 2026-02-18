@@ -42,7 +42,7 @@ contract NFATRedeemer {
 
     // --- Events ---
 
-    event Fund(uint256 indexed tokenId, uint256 amount);
+    event Fund(uint256 indexed tokenId, address indexed funder, uint256 amount);
     event Redeem(uint256 indexed tokenId, uint256 amount);
 
     // --- Constructor ---
@@ -67,7 +67,7 @@ contract NFATRedeemer {
         // Interactions
         sUSDS.transferFrom(msg.sender, address(this), amount);
 
-        emit Fund(tokenId, amount);
+        emit Fund(tokenId, msg.sender, amount);
     }
 
     /// @notice NFAT holder claims specified amount from funded balance
