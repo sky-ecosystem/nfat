@@ -185,7 +185,7 @@ contract NFATFacility {
         require(deposits[msg.sender] >= amount, "NFATFacility/insufficient-deposits");
 
         // Effects
-        deposits[msg.sender] -= amount;
+        unchecked { deposits[msg.sender] -= amount; }
 
         // Interactions
         sUSDS.transfer(msg.sender, amount);
@@ -205,7 +205,7 @@ contract NFATFacility {
         uint256 tokenId = nextTokenId++;
 
         // Effects - Queue
-        deposits[target] -= amount;
+        unchecked { deposits[target] -= amount; }
 
         // Effects - NFAT
         _owners[tokenId] = target;
