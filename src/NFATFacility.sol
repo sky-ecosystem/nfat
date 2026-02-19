@@ -62,11 +62,13 @@ contract NFATFacility {
 
     // --- NFAT Storage ---
 
-    mapping(uint256 tokenId => address owner)           internal _owners;
-    mapping(address owner => uint256 count)             internal _balances;
-    mapping(uint256 tokenId => address approved)        internal _tokenApprovals;
-    mapping(address owner => mapping(address operator => bool approved)) internal _operatorApprovals;
+    string  public name;
+    string  public symbol;
     uint256 public nextTokenId;
+    mapping(uint256 tokenId => address owner)                              internal _owners;
+    mapping(address owner   => uint256 count)                              internal _balances;
+    mapping(uint256 tokenId => address approved)                           internal _tokenApprovals;
+    mapping(address owner   => mapping(address operator => bool approved)) internal _operatorApprovals;
 
     // --- Events: Access Control ---
 
@@ -118,9 +120,11 @@ contract NFATFacility {
 
     // --- Constructor ---
 
-    constructor(address gem_, address almProxy_) {
+    constructor(address gem_, address almProxy_, string memory name_, string memory symbol_) {
         gem = GemLike(gem_);
         almProxy = almProxy_;
+        name   = name_;
+        symbol = symbol_;
         wards[msg.sender] = 1;
         emit Rely(msg.sender);
     }
@@ -171,6 +175,22 @@ contract NFATFacility {
         if (what == "identityNetwork") identityNetwork = data;
         else revert("NFATFacility/file-unrecognized-param");
         emit File(what, data);
+    }
+
+    /// @notice Check if a user has a specific role
+    /// @param usr The address to check
+    /// @param role The role ID
+    /// @return has Whether the user has the role
+    function hasUserRole(address usr, uint8 role) external view returns (bool has) {
+        has = userRoles[usr] & bytes32(uint256(1) << role) != bytes32(0);
+    }
+
+    /// @notice Check if an action is assigned to a role
+    /// @param sig The function signature
+    /// @param role The role ID
+    /// @return has Whether the action is in the role
+    function isActionInRole(bytes4 sig, uint8 role) external view returns (bool has) {
+        has = actionsRoles[sig] & bytes32(uint256(1) << role) != bytes32(0);
     }
 
     // --- Queue Functions ---
@@ -342,36 +362,6 @@ contract NFATFacility {
         } catch {
             return false;
         }
-    }
-
-    // --- View Functions ---
-
-    // --- Roles  ---
-
-    /// @notice Check if a user has a specific role
-    /// @param usr The address to check
-    /// @param role The role ID
-    /// @return has Whether the user has the role
-    function hasUserRole(address usr, uint8 role) external view returns (bool has) {
-        has = userRoles[usr] & bytes32(uint256(1) << role) != bytes32(0);
-    }
-
-    /// @notice Check if an action is assigned to a role
-    /// @param sig The function signature
-    /// @param role The role ID
-    /// @return has Whether the action is in the role
-    function isActionInRole(bytes4 sig, uint8 role) external view returns (bool has) {
-        has = actionsRoles[sig] & bytes32(uint256(1) << role) != bytes32(0);
-    }
-
-    // --- ERC-721 Metadata  ---
-
-    function name() external pure returns (string memory) {
-        return "Non-Fungible Allocation Token";
-    }
-
-    function symbol() external pure returns (string memory) {
-        return "NFAT";
     }
 
     // --- ERC-165 ---
