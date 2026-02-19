@@ -21,17 +21,17 @@ interface GemLike {
     function transfer(address to, uint256 amount) external;
 }
 
-interface IERC721Receiver {
+interface IdentityNetworkLike {
+    function isMember(address account) external view returns (bool);
+}
+
+interface ERC721ReceiverLike {
     function onERC721Received(
         address operator,
         address from,
         uint256 tokenId,
         bytes calldata data
     ) external returns (bytes4);
-}
-
-interface IdentityNetworkLike {
-    function isMember(address account) external view returns (bool);
 }
 
 /// @title NFATFacility
@@ -337,8 +337,8 @@ contract NFATFacility {
         if (to.code.length == 0) {
             return true;
         }
-        try IERC721Receiver(to).onERC721Received(msg.sender, from, tokenId, data) returns (bytes4 retval) {
-            return retval == IERC721Receiver.onERC721Received.selector;
+        try ERC721ReceiverLike(to).onERC721Received(msg.sender, from, tokenId, data) returns (bytes4 retval) {
+            return retval == ERC721ReceiverLike.onERC721Received.selector;
         } catch {
             return false;
         }
