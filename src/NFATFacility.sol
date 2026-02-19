@@ -16,9 +16,9 @@
 
 pragma solidity ^0.8.24;
 
-interface IERC20 {
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
-    function transfer(address to, uint256 amount) external returns (bool);
+interface GemLike {
+    function transferFrom(address from, address to, uint256 amount) external;
+    function transfer(address to, uint256 amount) external;
 }
 
 interface IERC721Receiver {
@@ -41,7 +41,7 @@ contract NFATFacility {
 
     // --- Immutables ---
 
-    IERC20  public immutable sUSDS;      // Underlying asset
+    GemLike public immutable gem;        // Underlying asset
     address public immutable almProxy;   // Custody destination for claimed funds
 
     // --- Access Control Storage ---
@@ -118,8 +118,8 @@ contract NFATFacility {
 
     // --- Constructor ---
 
-    constructor(address sUSDS_, address almProxy_) {
-        sUSDS = IERC20(sUSDS_);
+    constructor(address gem_, address almProxy_) {
+        gem = GemLike(gem_);
         almProxy = almProxy_;
         wards[msg.sender] = 1;
         emit Rely(msg.sender);
@@ -175,8 +175,8 @@ contract NFATFacility {
 
     // --- Queue Functions ---
 
-    /// @notice Prime deposits sUSDS into the queue
-    /// @param amount The amount of sUSDS to deposit
+    /// @notice Prime deposits gem into the queue
+    /// @param amount The amount of gem to deposit
     function subscribe(uint256 amount) external {
         require(amount > 0, "NFATFacility/zero-amount");
 
@@ -184,13 +184,13 @@ contract NFATFacility {
         deposits[msg.sender] += amount;
 
         // Interactions
-        sUSDS.transferFrom(msg.sender, address(this), amount);
+        gem.transferFrom(msg.sender, address(this), amount);
 
         emit Subscribe(msg.sender, amount);
     }
 
-    /// @notice Prime withdraws sUSDS from the queue
-    /// @param amount The amount of sUSDS to withdraw
+    /// @notice Prime withdraws gem from the queue
+    /// @param amount The amount of gem to withdraw
     function withdraw(uint256 amount) external {
         require(amount > 0, "NFATFacility/zero-amount");
         require(deposits[msg.sender] >= amount, "NFATFacility/insufficient-deposits");
@@ -199,14 +199,14 @@ contract NFATFacility {
         unchecked { deposits[msg.sender] -= amount; }
 
         // Interactions
-        sUSDS.transfer(msg.sender, amount);
+        gem.transfer(msg.sender, amount);
 
         emit Withdraw(msg.sender, amount);
     }
 
     /// @notice Sentinel claims from queue, mints NFAT to target
     /// @param target The Prime address to mint the NFAT to
-    /// @param amount The amount of sUSDS to claim
+    /// @param amount The amount of gem to claim
     function claim(address target, uint256 amount) external roleAuth notStopped {
         require(amount > 0, "NFATFacility/zero-amount");
         require(deposits[target] >= amount, "NFATFacility/insufficient-deposits");
@@ -223,7 +223,7 @@ contract NFATFacility {
         _balances[target] += 1;
 
         // Interactions
-        sUSDS.transfer(almProxy, amount);
+        gem.transfer(almProxy, amount);
 
         emit Claim(target, tokenId, amount);
         emit Transfer(address(0), target, tokenId);
@@ -233,7 +233,7 @@ contract NFATFacility {
 
     /// @notice Deposit funds for NFAT redemption
     /// @param tokenId The NFAT to fund
-    /// @param amount The amount of sUSDS to deposit
+    /// @param amount The amount of gem to deposit
     function fund(uint256 tokenId, uint256 amount) external {
         require(_owners[tokenId] != address(0), "NFATFacility/invalid-token");
         require(amount > 0, "NFATFacility/zero-amount");
@@ -242,14 +242,14 @@ contract NFATFacility {
         funded[tokenId] += amount;
 
         // Interactions
-        sUSDS.transferFrom(msg.sender, address(this), amount);
+        gem.transferFrom(msg.sender, address(this), amount);
 
         emit Fund(tokenId, msg.sender, amount);
     }
 
     /// @notice NFAT holder claims specified amount from funded balance
     /// @param tokenId The NFAT to redeem from
-    /// @param amount The amount of sUSDS to claim
+    /// @param amount The amount of gem to claim
     function redeem(uint256 tokenId, uint256 amount) external {
         require(amount > 0, "NFATFacility/zero-amount");
         require(funded[tokenId] >= amount, "NFATFacility/insufficient-funded");
@@ -261,7 +261,7 @@ contract NFATFacility {
         unchecked { funded[tokenId] -= amount; }
 
         // Interactions
-        sUSDS.transfer(owner, amount);
+        gem.transfer(owner, amount);
 
         emit Redeem(tokenId, amount);
     }
