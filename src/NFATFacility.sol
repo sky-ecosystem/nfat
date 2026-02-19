@@ -50,13 +50,6 @@ contract NFATFacility {
 
     uint256 public nextTokenId;
 
-    struct NFATData {
-        uint256 principal;
-        address depositor;
-        uint40  mintedAt;
-    }
-
-    mapping(uint256 tokenId => NFATData data)           internal _nfats;
     mapping(uint256 tokenId => address owner)           internal _owners;
     mapping(address owner => uint256 count)             internal _balances;
     mapping(uint256 tokenId => address approved)        internal _tokenApprovals;
@@ -215,11 +208,6 @@ contract NFATFacility {
         deposits[target] -= amount;
 
         // Effects - NFAT
-        _nfats[tokenId] = NFATData({
-            principal: amount,
-            depositor: target,
-            mintedAt: uint40(block.timestamp)
-        });
         _owners[tokenId] = target;
         _balances[target] += 1;
 
@@ -324,30 +312,6 @@ contract NFATFacility {
     /// @return has Whether the action is in the role
     function isActionInRole(bytes4 sig, uint8 role) external view returns (bool has) {
         has = actionsRoles[sig] & bytes32(uint256(1) << role) != bytes32(0);
-    }
-
-    /// @notice Get the principal of an NFAT
-    /// @param tokenId The NFAT to query
-    /// @return The principal
-    function getPrincipal(uint256 tokenId) external view returns (uint256) {
-        require(_owners[tokenId] != address(0), "NFATFacility/invalid-token");
-        return _nfats[tokenId].principal;
-    }
-
-    /// @notice Get the original depositor of an NFAT
-    /// @param tokenId The NFAT to query
-    /// @return The depositor address
-    function getDepositor(uint256 tokenId) external view returns (address) {
-        require(_owners[tokenId] != address(0), "NFATFacility/invalid-token");
-        return _nfats[tokenId].depositor;
-    }
-
-    /// @notice Get the mint timestamp of an NFAT
-    /// @param tokenId The NFAT to query
-    /// @return The mint timestamp
-    function getMintedAt(uint256 tokenId) external view returns (uint40) {
-        require(_owners[tokenId] != address(0), "NFATFacility/invalid-token");
-        return _nfats[tokenId].mintedAt;
     }
 
     // --- ERC-721 Metadata  ---
