@@ -263,6 +263,7 @@ contract NFATFacility {
 
         address owner = _owners[tokenId];
         require(msg.sender == owner, "NFATFacility/not-owner");
+        require(identityNetwork == address(0) || IdentityNetworkLike(identityNetwork).isMember(owner), "NFATFacility/not-member");
 
         // Effects
         unchecked { funded[tokenId] -= amount; }

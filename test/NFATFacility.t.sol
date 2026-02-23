@@ -399,6 +399,21 @@ contract NFATFacilityTest is DssTest {
         vm.prank(prime1); facility.redeem(tokenId, 11 ether);
     }
 
+    function testRevertRedeemNotMember() public {
+        vm.prank(pauseProxy); facility.file("identityNetwork", address(idNet));
+        idNet.setMember(prime1, true);
+
+        _subscribe(prime1, 100 ether);
+        uint256 tokenId = _claim(prime1, 100 ether);
+        _fundToken(tokenId, 50 ether);
+
+        // prime1 gets de-whitelisted after funding
+        idNet.setMember(prime1, false);
+
+        vm.expectRevert("NFATFacility/not-member");
+        vm.prank(prime1); facility.redeem(tokenId, 50 ether);
+    }
+
     function testRevertRedeemNotOwner() public {
         _subscribe(prime1, 100 ether);
         uint256 tokenId = _claim(prime1, 100 ether);
