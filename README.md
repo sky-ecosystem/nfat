@@ -12,3 +12,7 @@ Below is a non-exhaustive list of deviations from [laniakea-docs](https://github
 - The spec requires complete withdrawal only for the queue. This implementation supports partial withdrawals.
 - The spec calls the minting operation `claim`. This implementation uses `issue` to avoid confusion with the redeem-side concept of claiming funded amounts.
 - The spec tracks queue deposits through a shares-based accounting system. Since the deposited asset earns no yield while queued, shares would always be 1:1 with the underlying, so this implementation tracks deposits as direct balances instead.
+
+## Notes
+
+- The contract inherits OpenZeppelin's ERC721 which advertises support for the ERC721Metadata extension via `supportsInterface`. However, no base URI is configured, so `tokenURI()` returns an empty string for all tokens.

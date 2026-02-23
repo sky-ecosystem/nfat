@@ -5,6 +5,7 @@ import "dss-test/DssTest.sol";
 import { NFATFacility } from "src/NFATFacility.sol";
 import { NFATDeploy } from "deploy/NFATDeploy.sol";
 import { NFATInit, NFATConfig } from "deploy/NFATInit.sol";
+import { IERC721Errors } from "openzeppelin-contracts/contracts/interfaces/draft-IERC6093.sol";
 
 interface SUsdsLike {
     function balanceOf(address) external view returns (uint256);
@@ -265,9 +266,9 @@ contract NFATFacilityTest is DssTest {
 
         // First issue
         vm.expectEmit(true, true, true, true);
-        emit Issue(prime1, 0, 60 ether);
-        vm.expectEmit(true, true, true, true);
         emit Transfer(address(0), prime1, 0);
+        vm.expectEmit(true, true, true, true);
+        emit Issue(prime1, 0, 60 ether);
         uint256 tokenId = _issue(prime1, 60 ether);
 
         assertEq(tokenId, 0);
@@ -322,7 +323,7 @@ contract NFATFacilityTest is DssTest {
 
         _subscribe(prime1, 100 ether);
 
-        vm.expectRevert("NFATFacility/target-not-member");
+        vm.expectRevert("NFATFacility/not-member");
         vm.prank(operator); facility.issue(prime1, 50 ether);
     }
 
@@ -465,7 +466,7 @@ contract NFATFacilityTest is DssTest {
         _subscribe(prime1, 100 ether);
         uint256 tokenId = _issue(prime1, 100 ether);
 
-        vm.expectRevert("NFATFacility/not-authorized");
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721InsufficientApproval.selector, prime2, tokenId));
         vm.prank(prime2); facility.transferFrom(prime1, prime2, tokenId);
     }
 
@@ -473,7 +474,7 @@ contract NFATFacilityTest is DssTest {
         _subscribe(prime1, 100 ether);
         uint256 tokenId = _issue(prime1, 100 ether);
 
-        vm.expectRevert("NFATFacility/wrong-from");
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721IncorrectOwner.selector, prime2, tokenId, prime1));
         vm.prank(prime1); facility.transferFrom(prime2, prime2, tokenId);
     }
 
@@ -481,7 +482,7 @@ contract NFATFacilityTest is DssTest {
         _subscribe(prime1, 100 ether);
         uint256 tokenId = _issue(prime1, 100 ether);
 
-        vm.expectRevert("NFATFacility/zero-address");
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721InvalidReceiver.selector, address(0)));
         vm.prank(prime1); facility.transferFrom(prime1, address(0), tokenId);
     }
 
@@ -495,7 +496,7 @@ contract NFATFacilityTest is DssTest {
 
         // Reverts when `to` is not a member
         idNet.setMember(prime2, false);
-        vm.expectRevert("NFATFacility/to-not-member");
+        vm.expectRevert("NFATFacility/not-member");
         vm.prank(prime1); facility.transferFrom(prime1, prime2, tokenId);
 
         // Succeeds when `to` is a member
@@ -528,12 +529,12 @@ contract NFATFacilityTest is DssTest {
 
         // Bad return value
         uint256 tokenId0 = _issue(prime1, 50 ether);
-        vm.expectRevert("NFATFacility/unsafe-recipient");
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721InvalidReceiver.selector, address(badReceiver)));
         vm.prank(prime1); facility.safeTransferFrom(prime1, address(badReceiver), tokenId0);
 
         // No onERC721Received at all
         uint256 tokenId1 = _issue(prime1, 50 ether);
-        vm.expectRevert("NFATFacility/unsafe-recipient");
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721InvalidReceiver.selector, address(facility)));
         vm.prank(prime1); facility.safeTransferFrom(prime1, address(facility), tokenId1);
     }
 
@@ -557,7 +558,7 @@ contract NFATFacilityTest is DssTest {
         _subscribe(prime1, 100 ether);
         uint256 tokenId = _issue(prime1, 100 ether);
 
-        vm.expectRevert("NFATFacility/not-authorized");
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721InvalidApprover.selector, prime2));
         vm.prank(prime2); facility.approve(prime2, tokenId);
     }
 
@@ -569,23 +570,23 @@ contract NFATFacilityTest is DssTest {
         assertTrue(facility.isApprovedForAll(prime1, prime2));
     }
 
-    function testRevertSetApprovalForAllSelf() public {
-        vm.expectRevert("NFATFacility/self-approval");
-        vm.prank(prime1); facility.setApprovalForAll(prime1, true);
+    function testRevertSetApprovalForAllZeroAddress() public {
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721InvalidOperator.selector, address(0)));
+        vm.prank(prime1); facility.setApprovalForAll(address(0), true);
     }
 
     function testRevertOwnerOfInvalidToken() public {
-        vm.expectRevert("NFATFacility/invalid-token");
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, uint256(999)));
         facility.ownerOf(999);
     }
 
     function testRevertBalanceOfZeroAddress() public {
-        vm.expectRevert("NFATFacility/zero-address");
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721InvalidOwner.selector, address(0)));
         facility.balanceOf(address(0));
     }
 
     function testRevertGetApprovedInvalidToken() public {
-        vm.expectRevert("NFATFacility/invalid-token");
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, uint256(999)));
         facility.getApproved(999);
     }
 
