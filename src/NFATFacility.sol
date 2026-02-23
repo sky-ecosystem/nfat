@@ -86,7 +86,7 @@ contract NFATFacility {
 
     event Subscribe(address indexed depositor, uint256 amount);
     event Withdraw(address indexed depositor, uint256 amount);
-    event Claim(address indexed target, uint256 indexed tokenId, uint256 amount);
+    event Issue(address indexed target, uint256 indexed tokenId, uint256 amount);
 
     // --- Events: Redeem ---
 
@@ -211,10 +211,10 @@ contract NFATFacility {
         emit Withdraw(msg.sender, amount);
     }
 
-    /// @notice Sentinel claims from queue, mints NFAT to target
+    /// @notice Operator issues NFAT from queue, mints to target
     /// @param target The Prime address to mint the NFAT to
-    /// @param amount The amount of gem to claim
-    function claim(address target, uint256 amount) external toll notStopped {
+    /// @param amount The amount of gem to issue
+    function issue(address target, uint256 amount) external toll notStopped {
         require(amount > 0, "NFATFacility/zero-amount");
         require(deposits[target] >= amount, "NFATFacility/insufficient-deposits");
 
@@ -232,7 +232,7 @@ contract NFATFacility {
         // Interactions
         gem.transfer(almProxy, amount);
 
-        emit Claim(target, tokenId, amount);
+        emit Issue(target, tokenId, amount);
         emit Transfer(address(0), target, tokenId);
     }
 
