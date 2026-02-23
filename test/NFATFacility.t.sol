@@ -39,13 +39,15 @@ contract NFATFacilityTest is DssTest {
 
     address almProxy   = address(0xA1);
     address pauseProxy;
-    address lpha       = address(0xC1);
-    address pauser     = address(0xC2);
+    address operator   = address(0xC1);
+    address freezer    = address(0xC2);
     address prime1     = address(0xB1);
     address prime2     = address(0xB2);
 
-    event SetUserRole(address indexed who, uint8 indexed role, bool enabled);
-    event SetRoleAction(uint8 indexed role, bytes4 sig, bool enabled);
+    event Kiss(address indexed usr);
+    event Diss(address indexed usr);
+    event AddFreezer(address indexed usr);
+    event RemoveFreezer(address indexed usr);
     event Stop();
     event Start();
     event Subscribe(address indexed depositor, uint256 amount);
@@ -73,14 +75,14 @@ contract NFATFacilityTest is DssTest {
         susds    = SUsdsLike(address(facility.gem()));
 
         // Init via NFATInit as pauseProxy
-        address[] memory pausers = new address[](1);
-        pausers[0] = pauser;
+        address[] memory _freezers = new address[](1);
+        _freezers[0] = freezer;
         NFATConfig memory cfg = NFATConfig({
             facilityKey:     "NFAT_FAC_HALO1",
             almProxy:        almProxy,
             identityNetwork: address(0),
-            lpha:            lpha,
-            pausers:         pausers
+            operator:        operator,
+            freezers:        _freezers
         });
         vm.startPrank(pauseProxy);
         NFATInit.init(dss, facility_, cfg);
@@ -101,7 +103,7 @@ contract NFATFacilityTest is DssTest {
 
     function _claim(address target, uint256 amount) internal returns (uint256 tokenId) {
         tokenId = facility.nextTokenId();
-        vm.prank(lpha); facility.claim(target, amount);
+        vm.prank(operator); facility.claim(target, amount);
     }
 
     function _fundToken(uint256 tokenId, uint256 amount) internal {
@@ -115,13 +117,11 @@ contract NFATFacilityTest is DssTest {
     function testDeployAndInit() public view {
         assertEq(facility.wards(pauseProxy), 1);
 
-        // Pauser role configured by init
-        assertTrue(facility.hasUserRole(pauser, NFATInit.PAUSER));
-        assertTrue(facility.isActionInRole(facility.stop.selector, NFATInit.PAUSER));
+        // Freezer configured by init
+        assertEq(facility.cops(freezer), 1);
 
-        // Lpha role configured by init
-        assertTrue(facility.hasUserRole(lpha, NFATInit.LPHA));
-        assertTrue(facility.isActionInRole(facility.claim.selector, NFATInit.LPHA));
+        // Operator configured by init
+        assertEq(facility.buds(operator), 1);
 
         // Chainlog entry
         assertEq(dss.chainlog.getAddress("NFAT_FAC_HALO1"), address(facility));
@@ -140,57 +140,67 @@ contract NFATFacilityTest is DssTest {
     function testModifiers() public {
         vm.startPrank(address(0xBEEF));
         checkModifier(address(facility), "NFATFacility/not-authorized", [
-            facility.setUserRole.selector,
-            facility.setRoleAction.selector,
+            facility.kiss.selector,
+            facility.diss.selector,
+            facility.addFreezer.selector,
+            facility.removeFreezer.selector,
             facility.start.selector
         ]);
-        checkModifier(address(facility), "NFATFacility/role-not-authorized", [
-            facility.stop.selector,
+        vm.stopPrank();
+
+        checkModifier(address(facility), "NFATFacility/not-operator", [
             facility.claim.selector
         ]);
-        vm.stopPrank();
+        checkModifier(address(facility), "NFATFacility/not-freezer", [
+            facility.stop.selector
+        ]);
     }
 
-    function testSetUserRole() public {
-        vm.startPrank(pauseProxy);
-        vm.expectEmit(true, true, true, true);
-        emit SetUserRole(prime1, 1, true);
-        facility.setUserRole(prime1, 1, true);
-        assertTrue(facility.hasUserRole(prime1, 1));
+    function testKissDiss() public {
+        address who = address(0xb0b);
+        assertEq(facility.buds(who), 0);
 
-        facility.setUserRole(prime1, 1, false);
-        assertTrue(!facility.hasUserRole(prime1, 1));
-        vm.stopPrank();
+        vm.expectEmit(true, true, true, true);
+        emit Kiss(who);
+        vm.prank(pauseProxy); facility.kiss(who);
+        assertEq(facility.buds(who), 1);
+
+        vm.expectEmit(true, true, true, true);
+        emit Diss(who);
+        vm.prank(pauseProxy); facility.diss(who);
+        assertEq(facility.buds(who), 0);
     }
 
-    function testSetRoleAction() public {
-        bytes4 sig = facility.claim.selector;
-        vm.startPrank(pauseProxy);
-        vm.expectEmit(true, true, true, true);
-        emit SetRoleAction(1, sig, true);
-        facility.setRoleAction(1, sig, true);
-        assertTrue(facility.isActionInRole(sig, 1));
+    function testAddRemoveFreezer() public {
+        address who = address(0xb0b);
+        assertEq(facility.cops(who), 0);
 
-        facility.setRoleAction(1, sig, false);
-        assertTrue(!facility.isActionInRole(sig, 1));
-        vm.stopPrank();
+        vm.expectEmit(true, true, true, true);
+        emit AddFreezer(who);
+        vm.prank(pauseProxy); facility.addFreezer(who);
+        assertEq(facility.cops(who), 1);
+
+        vm.expectEmit(true, true, true, true);
+        emit RemoveFreezer(who);
+        vm.prank(pauseProxy); facility.removeFreezer(who);
+        assertEq(facility.cops(who), 0);
     }
 
     function testStopStart() public {
         _subscribe(prime1, 100 ether);
 
         // claim works before stop
-        vm.prank(lpha); facility.claim(prime1, 25 ether);
+        vm.prank(operator); facility.claim(prime1, 25 ether);
 
         // stop
         vm.expectEmit(true, true, true, true);
         emit Stop();
-        vm.prank(pauser); facility.stop();
+        vm.prank(freezer); facility.stop();
         assertTrue(facility.stopped());
 
         // claim reverts while stopped
         vm.expectRevert("NFATFacility/stopped");
-        vm.prank(lpha); facility.claim(prime1, 25 ether);
+        vm.prank(operator); facility.claim(prime1, 25 ether);
 
         // start
         vm.expectEmit(true, true, true, true);
@@ -199,7 +209,7 @@ contract NFATFacilityTest is DssTest {
         assertTrue(!facility.stopped());
 
         // claim works again after start
-        vm.prank(lpha); facility.claim(prime1, 25 ether);
+        vm.prank(operator); facility.claim(prime1, 25 ether);
     }
 
     // --- Queue ---
@@ -279,14 +289,14 @@ contract NFATFacilityTest is DssTest {
         _subscribe(prime1, 100 ether);
 
         vm.expectRevert("NFATFacility/zero-amount");
-        vm.prank(lpha); facility.claim(prime1, 0);
+        vm.prank(operator); facility.claim(prime1, 0);
     }
 
     function testRevertClaimInsufficientDeposits() public {
         _subscribe(prime1, 100 ether);
 
         vm.expectRevert("NFATFacility/insufficient-deposits");
-        vm.prank(lpha); facility.claim(prime1, 101 ether);
+        vm.prank(operator); facility.claim(prime1, 101 ether);
     }
 
     function testRevertClaimStopped() public {
@@ -294,7 +304,7 @@ contract NFATFacilityTest is DssTest {
         vm.prank(pauseProxy); facility.stop();
 
         vm.expectRevert("NFATFacility/stopped");
-        vm.prank(lpha); facility.claim(prime1, 50 ether);
+        vm.prank(operator); facility.claim(prime1, 50 ether);
     }
 
     function testClaimWithIdentityNetwork() public {
@@ -313,7 +323,7 @@ contract NFATFacilityTest is DssTest {
         _subscribe(prime1, 100 ether);
 
         vm.expectRevert("NFATFacility/target-not-member");
-        vm.prank(lpha); facility.claim(prime1, 50 ether);
+        vm.prank(operator); facility.claim(prime1, 50 ether);
     }
 
     // --- Fund ---
@@ -524,8 +534,8 @@ contract NFATFacilityTest is DssTest {
 
         // Operator approves
         vm.prank(prime1); facility.setApprovalForAll(prime2, true);
-        vm.prank(prime2); facility.approve(lpha, tokenId);
-        assertEq(facility.getApproved(tokenId), lpha);
+        vm.prank(prime2); facility.approve(operator, tokenId);
+        assertEq(facility.getApproved(tokenId), operator);
     }
 
     function testRevertApproveNotAuthorized() public {

@@ -22,24 +22,19 @@ interface NFATFacilityLike {
     function gem() external view returns (address);
     function almProxy() external view returns (address);
     function file(bytes32, address) external;
-    function setUserRole(address, uint8, bool) external;
-    function setRoleAction(uint8, bytes4, bool) external;
-    function stop() external;
-    function claim(address, uint256) external;
+    function kiss(address) external;
+    function addFreezer(address) external;
 }
 
 struct NFATConfig {
     bytes32   facilityKey;
     address   almProxy;
     address   identityNetwork;
-    address   lpha;
-    address[] pausers;
+    address   operator;
+    address[] freezers;
 }
 
 library NFATInit {
-
-    uint8 constant PAUSER = 1;
-    uint8 constant LPHA   = 2;
 
     function init(
         DssInstance memory dss,
@@ -57,18 +52,15 @@ library NFATInit {
 
         facility.file("identityNetwork", cfg.identityNetwork);
 
-        // --- Configure pauser role ---
+        // --- Configure freezers ---
 
-        facility.setRoleAction(PAUSER, NFATFacilityLike.stop.selector, true);
-
-        for (uint256 i = 0; i < cfg.pausers.length; ++i) {
-            facility.setUserRole(cfg.pausers[i], PAUSER, true);
+        for (uint256 i = 0; i < cfg.freezers.length; ++i) {
+            facility.addFreezer(cfg.freezers[i]);
         }
 
-        // --- Configure lpha role ---
+        // --- Configure operator ---
 
-        facility.setRoleAction(LPHA, NFATFacilityLike.claim.selector, true);
-        facility.setUserRole(cfg.lpha, LPHA, true);
+        facility.kiss(cfg.operator);
 
         // --- Chainlog ---
 

@@ -46,9 +46,9 @@ contract NFATFacility {
 
     // --- Access Control Storage ---
 
-    mapping(address usr => uint256 allowed)   public wards;
-    mapping(address usr => bytes32 rolesData) public userRoles;
-    mapping(bytes4  sig => bytes32 rolesData) public actionsRoles;
+    mapping(address usr => uint256 allowed) public wards;
+    mapping(address usr => uint256 allowed) public buds;  // Operator(s) (lpha-nfat beacon)
+    mapping(address usr => uint256 allowed) public cops;  // Freezers
     bool    public stopped;
     address public identityNetwork;
 
@@ -74,8 +74,10 @@ contract NFATFacility {
 
     event Rely(address indexed usr);
     event Deny(address indexed usr);
-    event SetUserRole(address indexed who, uint8 indexed role, bool enabled);
-    event SetRoleAction(uint8 indexed role, bytes4 sig, bool enabled);
+    event Kiss(address indexed usr);
+    event Diss(address indexed usr);
+    event AddFreezer(address indexed usr);
+    event RemoveFreezer(address indexed usr);
     event Stop();
     event Start();
     event File(bytes32 indexed what, address data);
@@ -104,12 +106,13 @@ contract NFATFacility {
         _;
     }
 
-    modifier roleAuth() {
-        require(
-            userRoles[msg.sender] & actionsRoles[msg.sig] != bytes32(0) ||
-            wards[msg.sender] == 1,
-            "NFATFacility/role-not-authorized"
-        );
+    modifier toll() {
+        require(buds[msg.sender] == 1 || wards[msg.sender] == 1, "NFATFacility/not-operator");
+        _;
+    }
+
+    modifier cop() {
+        require(cops[msg.sender] == 1 || wards[msg.sender] == 1, "NFATFacility/not-freezer");
         _;
     }
 
@@ -141,27 +144,27 @@ contract NFATFacility {
         emit Deny(usr);
     }
 
-    function setUserRole(address who, uint8 role, bool enabled) external auth {
-        bytes32 mask = bytes32(uint256(1) << role);
-        if (enabled) {
-            userRoles[who] |= mask;
-        } else {
-            userRoles[who] &= ~mask;
-        }
-        emit SetUserRole(who, role, enabled);
+    function kiss(address usr) external auth {
+        buds[usr] = 1;
+        emit Kiss(usr);
     }
 
-    function setRoleAction(uint8 role, bytes4 sig, bool enabled) external auth {
-        bytes32 mask = bytes32(uint256(1) << role);
-        if (enabled) {
-            actionsRoles[sig] |= mask;
-        } else {
-            actionsRoles[sig] &= ~mask;
-        }
-        emit SetRoleAction(role, sig, enabled);
+    function diss(address usr) external auth {
+        buds[usr] = 0;
+        emit Diss(usr);
     }
 
-    function stop() external roleAuth {
+    function addFreezer(address usr) external auth {
+        cops[usr] = 1;
+        emit AddFreezer(usr);
+    }
+
+    function removeFreezer(address usr) external auth {
+        cops[usr] = 0;
+        emit RemoveFreezer(usr);
+    }
+
+    function stop() external cop {
         stopped = true;
         emit Stop();
     }
@@ -175,22 +178,6 @@ contract NFATFacility {
         if (what == "identityNetwork") identityNetwork = data;
         else revert("NFATFacility/file-unrecognized-param");
         emit File(what, data);
-    }
-
-    /// @notice Check if a user has a specific role
-    /// @param usr The address to check
-    /// @param role The role ID
-    /// @return has Whether the user has the role
-    function hasUserRole(address usr, uint8 role) external view returns (bool has) {
-        has = userRoles[usr] & bytes32(uint256(1) << role) != bytes32(0);
-    }
-
-    /// @notice Check if an action is assigned to a role
-    /// @param sig The function signature
-    /// @param role The role ID
-    /// @return has Whether the action is in the role
-    function isActionInRole(bytes4 sig, uint8 role) external view returns (bool has) {
-        has = actionsRoles[sig] & bytes32(uint256(1) << role) != bytes32(0);
     }
 
     // --- Queue Functions ---
@@ -227,7 +214,7 @@ contract NFATFacility {
     /// @notice Sentinel claims from queue, mints NFAT to target
     /// @param target The Prime address to mint the NFAT to
     /// @param amount The amount of gem to claim
-    function claim(address target, uint256 amount) external roleAuth notStopped {
+    function claim(address target, uint256 amount) external toll notStopped {
         require(amount > 0, "NFATFacility/zero-amount");
         require(deposits[target] >= amount, "NFATFacility/insufficient-deposits");
 
