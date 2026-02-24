@@ -280,11 +280,15 @@ contract NFATFacilityTest is DssTest {
         assertEq(facility.deposits(prime1), 10 ether);
     }
 
-    function testRevertIssueZeroAmount() public {
-        _subscribe(prime1, 100 ether);
+    function testIssueZeroAmount() public {
+        uint256 depositsBefore = facility.deposits(prime1);
+        uint256 almBalBefore   = susds.balanceOf(almProxy);
 
-        vm.expectRevert("NFATFacility/zero-amount");
         vm.prank(operator); facility.issue(prime1, 0, 0);
+
+        assertEq(facility.ownerOf(0), prime1);
+        assertEq(facility.deposits(prime1), depositsBefore);
+        assertEq(susds.balanceOf(almProxy), almBalBefore);
     }
 
     function testRevertIssueInsufficientDeposits() public {

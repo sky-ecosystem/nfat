@@ -188,12 +188,12 @@ contract NFATFacility is ERC721 {
         emit Withdraw(msg.sender, amount);
     }
 
-    /// @notice Operator issues NFAT from queue, mints to target
+    /// @notice Operator claims funds from queue and mints an NFAT to target
+    /// @dev    amount = 0 is allowed.
     /// @param target The Prime address to mint the NFAT to
     /// @param amount The amount of gem to issue
     /// @param tokenId The token ID for the new NFAT
     function issue(address target, uint256 amount, uint256 tokenId) external toll notStopped {
-        require(amount > 0, "NFATFacility/zero-amount");
         require(deposits[target] >= amount, "NFATFacility/insufficient-deposits");
 
         // Effects - Queue
@@ -203,7 +203,7 @@ contract NFATFacility is ERC721 {
         _mint(target, tokenId);
 
         // Interactions
-        gem.transfer(almProxy, amount);
+        if (amount > 0) gem.transfer(almProxy, amount);
 
         emit Issue(target, tokenId, amount);
     }
