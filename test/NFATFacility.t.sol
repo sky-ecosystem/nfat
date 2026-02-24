@@ -103,8 +103,8 @@ contract NFATFacilityTest is DssTest {
     }
 
     function _issue(address target, uint256 amount) internal returns (uint256 tokenId) {
-        tokenId = facility.nextTokenId();
-        vm.prank(operator); facility.issue(target, amount);
+        tokenId = vm.randomUint();
+        vm.prank(operator); facility.issue(target, amount, tokenId);
     }
 
     function _fundToken(uint256 tokenId, uint256 amount) internal {
@@ -191,7 +191,7 @@ contract NFATFacilityTest is DssTest {
         _subscribe(prime1, 100 ether);
 
         // issue works before stop
-        vm.prank(operator); facility.issue(prime1, 25 ether);
+        vm.prank(operator); facility.issue(prime1, 25 ether, 0);
 
         // stop
         vm.expectEmit(true, true, true, true);
@@ -201,7 +201,7 @@ contract NFATFacilityTest is DssTest {
 
         // issue reverts while stopped
         vm.expectRevert("NFATFacility/stopped");
-        vm.prank(operator); facility.issue(prime1, 25 ether);
+        vm.prank(operator); facility.issue(prime1, 25 ether, 1);
 
         // start
         vm.expectEmit(true, true, true, true);
@@ -210,7 +210,7 @@ contract NFATFacilityTest is DssTest {
         assertTrue(!facility.stopped());
 
         // issue works again after start
-        vm.prank(operator); facility.issue(prime1, 25 ether);
+        vm.prank(operator); facility.issue(prime1, 25 ether, 1);
     }
 
     // --- Queue ---
@@ -265,23 +265,17 @@ contract NFATFacilityTest is DssTest {
         _subscribe(prime1, 100 ether);
 
         // First issue
-        vm.expectEmit(true, true, true, true);
-        emit Transfer(address(0), prime1, 0);
-        vm.expectEmit(true, true, true, true);
-        emit Issue(prime1, 0, 60 ether);
-        uint256 tokenId = _issue(prime1, 60 ether);
+        uint256 tokenId0 = _issue(prime1, 60 ether);
 
-        assertEq(tokenId, 0);
-        assertEq(facility.ownerOf(0), prime1);
+        assertEq(facility.ownerOf(tokenId0), prime1);
         assertEq(facility.balanceOf(prime1), 1);
         assertEq(facility.deposits(prime1), 40 ether);
         assertEq(susds.balanceOf(almProxy), 60 ether);
-        assertEq(facility.nextTokenId(), 1);
 
         // Second issue
-        _issue(prime1, 30 ether);
+        uint256 tokenId1 = _issue(prime1, 30 ether);
 
-        assertEq(facility.ownerOf(1), prime1);
+        assertEq(facility.ownerOf(tokenId1), prime1);
         assertEq(facility.balanceOf(prime1), 2);
         assertEq(facility.deposits(prime1), 10 ether);
     }
@@ -290,14 +284,14 @@ contract NFATFacilityTest is DssTest {
         _subscribe(prime1, 100 ether);
 
         vm.expectRevert("NFATFacility/zero-amount");
-        vm.prank(operator); facility.issue(prime1, 0);
+        vm.prank(operator); facility.issue(prime1, 0, 0);
     }
 
     function testRevertIssueInsufficientDeposits() public {
         _subscribe(prime1, 100 ether);
 
         vm.expectRevert("NFATFacility/insufficient-deposits");
-        vm.prank(operator); facility.issue(prime1, 101 ether);
+        vm.prank(operator); facility.issue(prime1, 101 ether, 0);
     }
 
     function testRevertIssueStopped() public {
@@ -305,7 +299,7 @@ contract NFATFacilityTest is DssTest {
         vm.prank(pauseProxy); facility.stop();
 
         vm.expectRevert("NFATFacility/stopped");
-        vm.prank(operator); facility.issue(prime1, 50 ether);
+        vm.prank(operator); facility.issue(prime1, 50 ether, 0);
     }
 
     function testIssueWithIdentityNetwork() public {
@@ -313,9 +307,9 @@ contract NFATFacilityTest is DssTest {
         idNet.setMember(prime1, true);
 
         _subscribe(prime1, 100 ether);
-        _issue(prime1, 50 ether);
+        uint256 tokenId = _issue(prime1, 50 ether);
 
-        assertEq(facility.ownerOf(0), prime1);
+        assertEq(facility.ownerOf(tokenId), prime1);
     }
 
     function testRevertIssueTargetNotMember() public {
@@ -324,7 +318,7 @@ contract NFATFacilityTest is DssTest {
         _subscribe(prime1, 100 ether);
 
         vm.expectRevert("NFATFacility/not-member");
-        vm.prank(operator); facility.issue(prime1, 50 ether);
+        vm.prank(operator); facility.issue(prime1, 50 ether, 0);
     }
 
     // --- Fund ---

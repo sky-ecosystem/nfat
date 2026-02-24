@@ -53,10 +53,6 @@ contract NFATFacility is ERC721 {
 
     mapping(uint256 tokenId => uint256 amount) public funded;
 
-    // --- NFAT Storage ---
-
-    uint256 public nextTokenId;
-
     // --- Events: Access Control ---
 
     event Rely(address indexed usr);
@@ -195,11 +191,10 @@ contract NFATFacility is ERC721 {
     /// @notice Operator issues NFAT from queue, mints to target
     /// @param target The Prime address to mint the NFAT to
     /// @param amount The amount of gem to issue
-    function issue(address target, uint256 amount) external toll notStopped {
+    /// @param tokenId The token ID for the new NFAT
+    function issue(address target, uint256 amount, uint256 tokenId) external toll notStopped {
         require(amount > 0, "NFATFacility/zero-amount");
         require(deposits[target] >= amount, "NFATFacility/insufficient-deposits");
-
-        uint256 tokenId = nextTokenId++;
 
         // Effects - Queue
         unchecked { deposits[target] -= amount; }
