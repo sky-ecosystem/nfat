@@ -56,6 +56,9 @@ contract NFATFacilityTest is DssTest {
     event Issue(address indexed target, uint256 indexed tokenId, uint256 amount);
     event Fund(uint256 indexed tokenId, address indexed funder, uint256 amount);
     event Redeem(uint256 indexed tokenId, uint256 amount);
+    event Rescue(address indexed token, address indexed to, uint256 amount);
+    event RescueDeposit(address indexed depositor, address indexed to, uint256 amount);
+    event RescueFunded(uint256 indexed tokenId, address indexed to, uint256 amount);
     event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
     event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
     event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
@@ -420,6 +423,79 @@ contract NFATFacilityTest is DssTest {
 
         vm.expectRevert("NFATFacility/not-owner");
         vm.prank(prime2); facility.redeem(tokenId, 50 ether);
+    }
+
+    // --- Rescue ---
+
+    function testRescue() public {
+        address recipient = address(0xBEEF);
+
+        // Rescue gem surplus
+        deal(address(susds), address(facility), 100 ether);
+
+        vm.expectEmit(true, true, true, true);
+        emit Rescue(address(susds), recipient, 100 ether);
+        vm.prank(pauseProxy); facility.rescue(address(susds), recipient, 100 ether);
+
+        assertEq(susds.balanceOf(recipient), 100 ether);
+        assertEq(susds.balanceOf(address(facility)), 0);
+
+        // Rescue non-gem token
+        address usds = dss.chainlog.getAddress("USDS");
+        deal(usds, address(facility), 50 ether);
+
+        vm.expectEmit(true, true, true, true);
+        emit Rescue(usds, recipient, 50 ether);
+        vm.prank(pauseProxy); facility.rescue(usds, recipient, 50 ether);
+
+        assertEq(SUsdsLike(usds).balanceOf(recipient), 50 ether);
+        assertEq(SUsdsLike(usds).balanceOf(address(facility)), 0);
+    }
+
+    function testRescueDeposit() public {
+        _subscribe(prime1, 100 ether);
+
+        address recipient = address(0xBEEF);
+
+        vm.expectEmit(true, true, true, true);
+        emit RescueDeposit(prime1, recipient, 60 ether);
+        vm.prank(pauseProxy); facility.rescueDeposit(prime1, recipient, 60 ether);
+
+        assertEq(facility.deposits(prime1), 40 ether);
+        assertEq(susds.balanceOf(recipient), 60 ether);
+        assertEq(susds.balanceOf(address(facility)), 40 ether);
+    }
+
+    function testRescueDepositInsufficientDeposits() public {
+        _subscribe(prime1, 100 ether);
+
+        vm.expectRevert("NFATFacility/insufficient-deposits");
+        vm.prank(pauseProxy); facility.rescueDeposit(prime1, address(0xBEEF), 101 ether);
+    }
+
+    function testRescueFunded() public {
+        _subscribe(prime1, 100 ether);
+        uint256 tokenId = _issue(prime1, 100 ether);
+        _fundToken(tokenId, 80 ether);
+
+        address recipient = address(0xBEEF);
+
+        vm.expectEmit(true, true, true, true);
+        emit RescueFunded(tokenId, recipient, 50 ether);
+        vm.prank(pauseProxy); facility.rescueFunded(tokenId, recipient, 50 ether);
+
+        assertEq(facility.funded(tokenId), 30 ether);
+        assertEq(susds.balanceOf(recipient), 50 ether);
+        assertEq(susds.balanceOf(address(facility)), 30 ether);
+    }
+
+    function testRescueFundedInsufficientFunded() public {
+        _subscribe(prime1, 100 ether);
+        uint256 tokenId = _issue(prime1, 100 ether);
+        _fundToken(tokenId, 10 ether);
+
+        vm.expectRevert("NFATFacility/insufficient-funded");
+        vm.prank(pauseProxy); facility.rescueFunded(tokenId, address(0xBEEF), 11 ether);
     }
 
     // --- ERC-721 ---

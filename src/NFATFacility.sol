@@ -76,6 +76,12 @@ contract NFATFacility is ERC721 {
     event Fund(uint256 indexed tokenId, address indexed funder, uint256 amount);
     event Redeem(uint256 indexed tokenId, uint256 amount);
 
+    // --- Events: Rescue ---
+
+    event Rescue(address indexed token, address indexed to, uint256 amount);
+    event RescueDeposit(address indexed depositor, address indexed to, uint256 amount);
+    event RescueFunded(uint256 indexed tokenId, address indexed to, uint256 amount);
+
     // --- Modifiers ---
 
     modifier auth() {
@@ -256,5 +262,42 @@ contract NFATFacility is ERC721 {
             "NFATFacility/not-member"
         );
         return super._update(to, tokenId, auth_);
+    }
+
+    // --- Rescue Functions ---
+
+    /// @notice Recover any ERC-20 token sent to this contract.
+    /// @dev    When `token == gem`, only untracked surplus should be recovered.
+    ///         Prefer `rescueDeposit` or `rescueFunded` for tracked gem balances.
+    /// @param token  The ERC-20 token to recover
+    /// @param to     The recipient address
+    /// @param amount The amount to transfer
+    function rescue(address token, address to, uint256 amount) external auth {
+        GemLike(token).transfer(to, amount);
+        emit Rescue(token, to, amount);
+    }
+
+    /// @notice Recover queued deposits with accounting adjustment.
+    /// @dev    Preferred over `rescue` for tracked deposit balances.
+    /// @param depositor The depositor whose balance to debit
+    /// @param to        The recipient address
+    /// @param amount    The amount to transfer
+    function rescueDeposit(address depositor, address to, uint256 amount) external auth {
+        require(deposits[depositor] >= amount, "NFATFacility/insufficient-deposits");
+        unchecked { deposits[depositor] -= amount; }
+        gem.transfer(to, amount);
+        emit RescueDeposit(depositor, to, amount);
+    }
+
+    /// @notice Recover funded redemption balance with accounting adjustment.
+    /// @dev    Preferred over `rescue` for tracked funded balances.
+    /// @param tokenId The NFAT whose funded balance to debit
+    /// @param to      The recipient address
+    /// @param amount  The amount to transfer
+    function rescueFunded(uint256 tokenId, address to, uint256 amount) external auth {
+        require(funded[tokenId] >= amount, "NFATFacility/insufficient-funded");
+        unchecked { funded[tokenId] -= amount; }
+        gem.transfer(to, amount);
+        emit RescueFunded(tokenId, to, amount);
     }
 }
