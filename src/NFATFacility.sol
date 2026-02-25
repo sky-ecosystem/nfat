@@ -27,15 +27,12 @@ interface IdentityNetworkLike {
     function isMember(address account) external view returns (bool);
 }
 
-/// @title NFATFacility
-/// @notice Non-Fungible Allocation Token Facility for bespoke capital deployment deals
-/// @dev Implements queue-based deposits and ERC-721 NFAT minting
 contract NFATFacility is ERC721 {
 
     // --- Immutables ---
 
     GemLike public immutable gem;        // Underlying asset
-    address public immutable almProxy;   // Custody destination for claimed funds
+    address public immutable almProxy;   // Destination of funds claimed by the operator
 
     // --- Access Control Storage ---
 
@@ -165,97 +162,54 @@ contract NFATFacility is ERC721 {
 
     // --- Queue Functions ---
 
-    /// @notice Prime deposits gem into the queue
-    /// @param amount The amount of gem to deposit
     function subscribe(uint256 amount) external {
         require(amount > 0, "NFATFacility/zero-amount");
-
-        // Effects
         deposits[msg.sender] += amount;
-
-        // Interactions
         gem.transferFrom(msg.sender, address(this), amount);
-
         emit Subscribe(msg.sender, amount);
     }
 
-    /// @notice Prime withdraws gem from the queue
-    /// @param amount The amount of gem to withdraw
     function withdraw(uint256 amount) external {
         require(amount > 0, "NFATFacility/zero-amount");
         require(deposits[msg.sender] >= amount, "NFATFacility/insufficient-deposits");
-
-        // Effects
         unchecked { deposits[msg.sender] -= amount; }
-
-        // Interactions
         gem.transfer(msg.sender, amount);
-
         emit Withdraw(msg.sender, amount);
     }
 
-    /// @notice Operator claims funds from queue and mints an NFAT to target
-    /// @dev    amount = 0 is allowed.
-    /// @param target The Prime address to mint the NFAT to
-    /// @param amount The amount of gem to issue
-    /// @param tokenId The token ID for the new NFAT
+    // Note: amount = 0 is allowed (mint NFAT without moving funds)
     function issue(address target, uint256 amount, uint256 tokenId) external toll notStopped {
         require(deposits[target] >= amount, "NFATFacility/insufficient-deposits");
-
-        // Effects - Queue
         unchecked { deposits[target] -= amount; }
-
-        // Effects - NFAT (identity network check in _update)
-        _mint(target, tokenId);
-
-        // Interactions
+        _mint(target, tokenId); // identity network check in _update
         if (amount > 0) gem.transfer(almProxy, amount);
-
         emit Issue(target, tokenId, amount);
     }
 
     // --- Redeem Functions ---
 
-    /// @notice Deposit funds for NFAT redemption
-    /// @param tokenId The NFAT to fund
-    /// @param amount The amount of gem to deposit
     function fund(uint256 tokenId, uint256 amount) external {
         require(_ownerOf(tokenId) != address(0), "NFATFacility/invalid-token");
         require(amount > 0, "NFATFacility/zero-amount");
-
-        // Effects
         funded[tokenId] += amount;
-
-        // Interactions
         gem.transferFrom(msg.sender, address(this), amount);
-
         emit Fund(tokenId, msg.sender, amount);
     }
 
-    /// @notice NFAT holder claims specified amount from funded balance
-    /// @param tokenId The NFAT to redeem from
-    /// @param amount The amount of gem to claim
     function redeem(uint256 tokenId, uint256 amount) external {
         require(amount > 0, "NFATFacility/zero-amount");
         require(funded[tokenId] >= amount, "NFATFacility/insufficient-funded");
-
         address owner = _ownerOf(tokenId);
         require(msg.sender == owner, "NFATFacility/not-owner");
         require(identityNetwork == address(0) || IdentityNetworkLike(identityNetwork).isMember(owner), "NFATFacility/not-member");
-
-        // Effects
         unchecked { funded[tokenId] -= amount; }
-
-        // Interactions
         gem.transfer(owner, amount);
-
         emit Redeem(tokenId, amount);
     }
 
     // --- ERC-721 Overrides ---
 
-    /// @dev OZ's _mint and transferFrom both revert before calling _update when to == address(0),
-    ///      and _burn is never invoked, so `to` is guaranteed to be non-zero here.
+    // Note: `to` is guaranteed non-zero (OZ reverts before _update when to == address(0), and _burn is never invoked)
     function _update(address to, uint256 tokenId, address auth_) internal override returns (address) {
         require(
             identityNetwork == address(0) || IdentityNetworkLike(identityNetwork).isMember(to),
@@ -266,22 +220,12 @@ contract NFATFacility is ERC721 {
 
     // --- Rescue Functions ---
 
-    /// @notice Recover any ERC-20 token sent to this contract.
-    /// @dev    When `token == gem`, only untracked surplus should be recovered.
-    ///         Prefer `rescueDeposit` or `rescueFunded` for tracked gem balances.
-    /// @param token  The ERC-20 token to recover
-    /// @param to     The recipient address
-    /// @param amount The amount to transfer
+    // Note: when token == gem, prefer rescueDeposit/rescueFunded to rescue tracked balances
     function rescue(address token, address to, uint256 amount) external auth {
         GemLike(token).transfer(to, amount);
         emit Rescue(token, to, amount);
     }
 
-    /// @notice Recover queued deposits with accounting adjustment.
-    /// @dev    Preferred over `rescue` for tracked deposit balances.
-    /// @param depositor The depositor whose balance to debit
-    /// @param to        The recipient address
-    /// @param amount    The amount to transfer
     function rescueDeposit(address depositor, address to, uint256 amount) external auth {
         require(deposits[depositor] >= amount, "NFATFacility/insufficient-deposits");
         unchecked { deposits[depositor] -= amount; }
@@ -289,11 +233,6 @@ contract NFATFacility is ERC721 {
         emit RescueDeposit(depositor, to, amount);
     }
 
-    /// @notice Recover funded redemption balance with accounting adjustment.
-    /// @dev    Preferred over `rescue` for tracked funded balances.
-    /// @param tokenId The NFAT whose funded balance to debit
-    /// @param to      The recipient address
-    /// @param amount  The amount to transfer
     function rescueFunded(uint256 tokenId, address to, uint256 amount) external auth {
         require(funded[tokenId] >= amount, "NFATFacility/insufficient-funded");
         unchecked { funded[tokenId] -= amount; }

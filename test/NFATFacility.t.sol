@@ -73,12 +73,10 @@ contract NFATFacilityTest is DssTest {
         receiver    = new ERC721ReceiverMock();
         badReceiver = new BadReceiverMock();
 
-        // Deploy via NFATDeploy (owner = pauseProxy)
         address facility_ = NFATDeploy.deploy(address(this), pauseProxy, almProxy, "Non-Fungible Allocation Token - Halo1", "NFAT-HALO1");
         facility = NFATFacility(facility_);
         susds    = SUsdsLike(address(facility.gem()));
 
-        // Init via NFATInit as pauseProxy
         address[] memory _freezers = new address[](1);
         _freezers[0] = freezer;
         NFATConfig memory cfg = NFATConfig({
@@ -92,7 +90,6 @@ contract NFATFacilityTest is DssTest {
         NFATInit.init(dss, facility_, cfg);
         vm.stopPrank();
 
-        // Fund primes
         deal(address(susds), prime1, 1000 ether);
         deal(address(susds), prime2, 1000 ether);
         vm.prank(prime1); susds.approve(address(facility), type(uint256).max);
@@ -120,14 +117,8 @@ contract NFATFacilityTest is DssTest {
 
     function testDeployAndInit() public view {
         assertEq(facility.wards(pauseProxy), 1);
-
-        // Freezer configured by init
         assertEq(facility.cops(freezer), 1);
-
-        // Operator configured by init
         assertEq(facility.buds(operator), 1);
-
-        // Chainlog entry
         assertEq(dss.chainlog.getAddress("NFAT_FAC_HALO1"), address(facility));
     }
 
@@ -193,26 +184,21 @@ contract NFATFacilityTest is DssTest {
     function testStopStart() public {
         _subscribe(prime1, 100 ether);
 
-        // issue works before stop
         vm.prank(operator); facility.issue(prime1, 25 ether, 0);
 
-        // stop
         vm.expectEmit(true, true, true, true);
         emit Stop();
         vm.prank(freezer); facility.stop();
         assertTrue(facility.stopped());
 
-        // issue reverts while stopped
         vm.expectRevert("NFATFacility/stopped");
         vm.prank(operator); facility.issue(prime1, 25 ether, 1);
 
-        // start
         vm.expectEmit(true, true, true, true);
         emit Start();
         vm.prank(pauseProxy); facility.start();
         assertTrue(!facility.stopped());
 
-        // issue works again after start
         vm.prank(operator); facility.issue(prime1, 25 ether, 1);
     }
 
@@ -409,7 +395,6 @@ contract NFATFacilityTest is DssTest {
         uint256 tokenId = _issue(prime1, 100 ether);
         _fundToken(tokenId, 50 ether);
 
-        // prime1 gets de-whitelisted after funding
         idNet.setMember(prime1, false);
 
         vm.expectRevert("NFATFacility/not-member");
@@ -568,12 +553,10 @@ contract NFATFacilityTest is DssTest {
         _subscribe(prime1, 100 ether);
         uint256 tokenId = _issue(prime1, 100 ether);
 
-        // Reverts when `to` is not a member
         idNet.setMember(prime2, false);
         vm.expectRevert("NFATFacility/not-member");
         vm.prank(prime1); facility.transferFrom(prime1, prime2, tokenId);
 
-        // Succeeds when `to` is a member
         idNet.setMember(prime2, true);
         vm.prank(prime1); facility.transferFrom(prime1, prime2, tokenId);
         assertEq(facility.ownerOf(tokenId), prime2);
