@@ -23,6 +23,7 @@ interface NFATFacilityLike {
     function name() external view returns (string memory);
     function symbol() external view returns (string memory);
     function file(bytes32, address) external;
+    function file(bytes32, string calldata) external;
     function kiss(address) external;
     function addFreezer(address) external;
 }
@@ -32,6 +33,7 @@ struct NFATConfig {
     string    symbol;
     address   almProxy;
     address   identityNetwork;
+    string    baseURI;
     address   operator;
     address[] freezers;
     bytes32   facilityKey;
@@ -54,6 +56,7 @@ library NFATInit {
 
         facility.file("recipient", cfg.almProxy);
         facility.file("identityNetwork", cfg.identityNetwork);
+        facility.file("baseURI", cfg.baseURI);
 
         facility.kiss(cfg.operator);
         for (uint256 i = 0; i < cfg.freezers.length; ++i) {

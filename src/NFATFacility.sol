@@ -171,6 +171,7 @@ contract NFATFacility is ERC721 {
     // --- Queue Functions ---
 
     // Note: amount = 0 is allowed to emit updated data without depositing; data is arbitrary and intended for off-chain agreements
+    // Note: subscribing does not guarantee eligibility to be issued an NFAT - issue() will revert if the subscriber is not in the identity network at issuance time
     function subscribe(uint256 amount, bytes calldata data) external notStopped {
         if (amount > 0) {
             gem.transferFrom(msg.sender, address(this), amount);

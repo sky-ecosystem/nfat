@@ -84,6 +84,7 @@ contract NFATFacilityTest is DssTest {
             symbol:          "NFAT-HALO1",
             almProxy:        almProxy,
             identityNetwork: address(0),
+            baseURI:         "",
             operator:        operator,
             freezers:        _freezers,
             facilityKey:     "NFAT_FAC_HALO1"
@@ -138,6 +139,7 @@ contract NFATFacilityTest is DssTest {
         assertEq(facility.wards(pauseProxy), 1);
         assertEq(facility.recipient(), almProxy);
         assertEq(address(facility.identityNetwork()), address(0));
+        assertEq(facility.baseURI(), "");
         assertEq(facility.buds(operator), 1);
         assertEq(facility.cops(freezer), 1);
         assertEq(dss.chainlog.getAddress("NFAT_FAC_HALO1"), address(facility));
