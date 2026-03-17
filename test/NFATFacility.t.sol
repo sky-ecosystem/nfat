@@ -32,14 +32,14 @@ contract BadReceiverMock {
 
 contract NFATFacilityTest is DssTest {
     DssInstance           dss;
-    NFATFacility          facility;
+    address               pauseProxy;
     GemLike               susds;
     IdentityNetworkMock   idNet;
     ERC721ReceiverMock    receiver;
     BadReceiverMock       badReceiver;
+    NFATFacility          facility;
 
     address almProxy   = address(0xA1);
-    address pauseProxy;
     address operator   = address(0xC1);
     address freezer    = address(0xC2);
     address prime1     = address(0xB1);
@@ -131,18 +131,38 @@ contract NFATFacilityTest is DssTest {
 
     // --- Deploy & Init ---
 
-    function testDeployAndInit() public view {
-        assertEq(address(facility.gem()), address(susds));
-        assertEq(facility.name(), "Non-Fungible Allocation Token - Halo1");
-        assertEq(facility.symbol(), "NFAT-HALO1");
-        assertEq(facility.wards(address(this)), 0);
-        assertEq(facility.wards(pauseProxy), 1);
-        assertEq(facility.recipient(), almProxy);
-        assertEq(address(facility.identityNetwork()), address(0));
-        assertEq(facility.baseURI(), "");
-        assertEq(facility.buds(operator), 1);
-        assertEq(facility.cops(freezer), 1);
-        assertEq(dss.chainlog.getAddress("NFAT_FAC_HALO1"), address(facility));
+    function testDeployAndInit() public {
+        address f_ = NFATDeploy.deploy(address(this), pauseProxy, "SomeName", "SomeSymb");
+        address[] memory cops = new address[](2);
+        cops[0] = address(0xff1);
+        cops[1] = address(0xff2);
+        NFATConfig memory cfg = NFATConfig({
+            name:            "SomeName",
+            symbol:          "SomeSymb",
+            almProxy:        address(0xaaa),
+            identityNetwork: address(0x111),
+            baseURI:         "someURI",
+            operator:        address(0xbbb),
+            freezers:        cops,
+            facilityKey:     "FAC_KEY"
+        });
+        vm.startPrank(pauseProxy);
+        NFATInit.init(dss, f_, cfg);
+        vm.stopPrank();
+
+        NFATFacility f = NFATFacility(f_);
+        assertEq(address(f.gem()), address(susds));
+        assertEq(f.name(), "SomeName");
+        assertEq(f.symbol(), "SomeSymb");
+        assertEq(f.wards(address(this)), 0);
+        assertEq(f.wards(pauseProxy), 1);
+        assertEq(f.recipient(), address(0xaaa));
+        assertEq(address(f.identityNetwork()), address(0x111));
+        assertEq(f.baseURI(), "someURI");
+        assertEq(f.buds(address(0xbbb)), 1);
+        assertEq(f.cops(cops[0]), 1);
+        assertEq(f.cops(cops[1]), 1);
+        assertEq(dss.chainlog.getAddress("FAC_KEY"), f_);
     }
 
     // --- Access Control ---
@@ -751,10 +771,12 @@ contract NFATFacilityTest is DssTest {
     function testTokenURI() public {
         _subscribe(prime1, 100 ether);
         uint256 tokenId = _issue(prime1, 100 ether);
+        assertEq(facility.baseURI(), "");
         assertEq(facility.tokenURI(tokenId), "");
 
         vm.prank(pauseProxy); facility.file("baseURI", "https://example.com/nfat/");
 
+        assertEq(facility.baseURI(), "https://example.com/nfat/");
         assertEq(facility.tokenURI(tokenId), string.concat("https://example.com/nfat/", vm.toString(tokenId)));
     }
 
