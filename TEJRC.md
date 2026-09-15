@@ -61,10 +61,6 @@ deposit must be at least `minTerm` short of that end, not just the first — oth
 deposit could attach to a term end about to elapse and be released without ever having been
 immobile.
 
-The effect is that funds cannot be added within `minTerm` of the end. If a payout is ever short
-at that point, `NFATFacility.repay` is permissionless, so the shortfall can be paid into the
-facility directly without going through the escrow.
-
 **`withdraw(tokenId, amount)`** — operator. Returns funds to `almProxy`. This is how an
 attested loss is applied: withdraw the haircut before term, leaving exactly what the holder is
 owed. Funds can only ever go to `almProxy`, so this contract cannot be a route to move value

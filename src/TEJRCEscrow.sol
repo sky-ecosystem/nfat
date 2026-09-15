@@ -118,14 +118,15 @@ contract TEJRCEscrow {
         require(tokenId != 0, "TEJRCEscrow/token-id-zero");
         require(amount   > 0, "TEJRCEscrow/zero-amount");
 
-        // Note: applied to every deposit, not just the first. Otherwise a later deposit could
-        // attach to an existing term end that is about to elapse, and be released without ever
-        // having been immobile - which is the whole basis for this contract having no rate limits
+        // Note: applied to every deposit, not just the first. This is what guarantees a window
+        // between funds being committed and becoming payable, in which the deposit can still be
+        // withdrawn. Without it on every deposit, an operator could top up a token id whose term
+        // end is imminent and have the funds paid out to an arbitrary NFAT holder before anyone
+        // watching could react - which is the whole basis for this contract having no rate limits
         require(termEnd >= block.timestamp + minTerm, "TEJRCEscrow/term-end-too-soon");
 
-        uint256 termEnd_ = termEnds[tokenId];
-        if (termEnd_ == 0) termEnds[tokenId] = termEnd;
-        else require(termEnd == termEnd_, "TEJRCEscrow/term-end-mismatch");
+        require(termEnds[tokenId] == 0 || termEnds[tokenId] == termEnd, "TEJRCEscrow/term-end-mismatch");
+        termEnds[tokenId] = termEnd;
 
         balances[tokenId] += amount;
 
@@ -142,15 +143,13 @@ contract TEJRCEscrow {
     function withdraw(uint256 tokenId, uint256 amount) external toll {
         require(amount > 0, "TEJRCEscrow/zero-amount");
 
-        uint256 balance = balances[tokenId];
-        require(balance >= amount, "TEJRCEscrow/insufficient-balance");
-        unchecked { balance -= amount; }
-        balances[tokenId] = balance;
+        require(balances[tokenId] >= amount, "TEJRCEscrow/insufficient-balance");
+        unchecked { balances[tokenId] -= amount; }
 
         // Note: emptying the balance releases the term end too, so the id can be redeposited
         // against a fresh one. That is the only way to correct a term end set in error. A
         // partial withdrawal keeps it, so applying a haircut cannot move a committed payout
-        if (balance == 0) termEnds[tokenId] = 0;
+        if (balances[tokenId] == 0) termEnds[tokenId] = 0;
 
         gem.transfer(almProxy, amount);
 
