@@ -16,12 +16,13 @@
 
 pragma solidity >=0.8.0;
 
-import { DssInstance } from "dss-test/MCD.sol";
-
 interface NFATFacilityLike {
     function gem() external view returns (address);
     function name() external view returns (string memory);
     function symbol() external view returns (string memory);
+    function recipient() external view returns (address);
+    function identityNetwork() external view returns (address);
+    function baseURI() external view returns (string memory);
     function file(bytes32, address) external;
     function file(bytes32, string calldata) external;
     function kiss(address) external;
@@ -29,40 +30,53 @@ interface NFATFacilityLike {
 }
 
 struct NFATConfig {
+    address   gem;
     string    name;
     string    symbol;
     address   almProxy;
     address   identityNetwork;
     string    baseURI;
-    address   operator;
     address[] freezers;
-    bytes32   facilityKey;
 }
 
-// Note: deployment scripts assume L1; adapt for L2
 // Note: `stopped` is initially false
 library NFATInit {
 
-    function init(
-        DssInstance memory dss,
-        address     facility_,
-        NFATConfig  memory cfg
-    ) internal {
+    function init(address facility_, NFATConfig memory cfg) internal {
         NFATFacilityLike facility = NFATFacilityLike(facility_);
 
-        require(facility.gem() == dss.chainlog.getAddress("SUSDS"), "NFATInit/gem-mismatch");
+        require(cfg.almProxy != address(0), "NFATInit/alm-proxy-zero-address");
+
+        // Block re-initialization: init is meant for a fresh facility, and a second run could not
+        // cleanly re-wire the facility for a different ALMProxy (the previous recipient would
+        // remain a bud), so refuse outright.
+        require(facility.recipient()             == address(0), "NFATInit/recipient-already-set");
+        require(facility.identityNetwork()       == address(0), "NFATInit/identity-network-already-set");
+        require(bytes(facility.baseURI()).length == 0,          "NFATInit/base-uri-already-set");
+
+        // Validate the configured gem explicitly
+        require(facility.gem() == cfg.gem, "NFATInit/gem-mismatch");
         require(keccak256(bytes(facility.name()))   == keccak256(bytes(cfg.name)),   "NFATInit/name-mismatch");
         require(keccak256(bytes(facility.symbol())) == keccak256(bytes(cfg.symbol)), "NFATInit/symbol-mismatch");
 
+        // Structural wiring: the shared ALMProxy is both the recipient and the sole bud.
+        // No additional operators are kissed: the Halo NFAT facet only tracks issuances made through
+        // the ALMProxy, so a third-party issuer would create positions it cannot account for or repay.
         facility.file("recipient", cfg.almProxy);
-        facility.file("identityNetwork", cfg.identityNetwork);
-        facility.file("baseURI", cfg.baseURI);
+        facility.kiss(cfg.almProxy);
 
-        facility.kiss(cfg.operator);
+        // Optional files are skipped when unset.
+        if (cfg.identityNetwork != address(0)) facility.file("identityNetwork", cfg.identityNetwork);
+        if (bytes(cfg.baseURI).length > 0)     facility.file("baseURI",         cfg.baseURI);
+
         for (uint256 i = 0; i < cfg.freezers.length; ++i) {
+            require(cfg.freezers[i] != address(0), "NFATInit/freezer-zero-address");
             facility.addFreezer(cfg.freezers[i]);
         }
 
-        dss.chainlog.setAddress(cfg.facilityKey, facility_);
+        // Note: no chainlog registration here. NFAT onboarding spells execute as a star SubProxy,
+        // which cannot write the Sky chainlog (PauseProxy-only); stars track addresses in their
+        // own address registry. If Sky core wants the facility in the chainlog, its own spell
+        // registers it.
     }
 }
