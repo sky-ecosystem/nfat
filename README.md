@@ -13,3 +13,14 @@ Deal terms (APY, maturity, payment frequency, etc) are tracked off-chain; the co
 ## Assumptions
 
 It is assumed that only simple, regular ERC-20 tokens will be used as `gem`. In particular, the supported tokens are assumed to revert on failure (instead of returning false), not to execute any hook or apply any fee on transfer, and not to execute any rebasing logic.
+
+## Audits
+
+Audit reports are hosted on the auditors' public portfolio pages:
+
+| Auditor | Report | Date |
+| --- | --- | --- |
+| ChainSecurity | [Sky NFAT Facility](https://www.chainsecurity.com/security-audit/sky-nfat-facility/) | 2026-10-13 |
+| Cantina | [Sky: Laniakea NFAT](https://cantina.xyz/portfolio/ef882489-c9e4-4d12-ab67-1d8d19d6f7f4) | 2026-03-13 |
+
+ChainSecurity reports are cumulative: each portfolio page hosts the latest version of the report, which covers all previously reviewed versions.
